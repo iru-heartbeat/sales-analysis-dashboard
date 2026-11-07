@@ -42,12 +42,24 @@ export async function importOrders(
   return { ok: true, processed: rows.length };
 }
 
-/** 商品マスタを登録・更新する(同じSKUは上書き)。失敗したら false。 */
-export async function importProducts(supabase: SupabaseClient, products: Product[]): Promise<boolean> {
+/**
+ * 商品マスタを登録する。失敗したら false。
+ * - 既定: 同じSKUは上書き(商品マスタCSVの取り込み用。マスタが正)
+ * - onlyNew: すでにあるSKUは触らず、新しいSKUだけ追加(売上CSVから作った候補用。
+ *   売上CSVの原価は丸め済みの平均なので、正式なマスタを上書きしないため)
+ */
+export async function importProducts(
+  supabase: SupabaseClient,
+  products: Product[],
+  options: { onlyNew?: boolean } = {},
+): Promise<boolean> {
   for (let i = 0; i < products.length; i += INSERT_CHUNK) {
     const { error } = await supabase
       .from("products")
-      .upsert(products.slice(i, i + INSERT_CHUNK), { onConflict: "sku" });
+      .upsert(products.slice(i, i + INSERT_CHUNK), {
+        onConflict: "sku",
+        ignoreDuplicates: options.onlyNew === true,
+      });
     if (error) return false;
   }
   return true;

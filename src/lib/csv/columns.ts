@@ -17,6 +17,21 @@ export const ORDER_COLUMNS = {
   category: ["category", "product type", "カテゴリ"],
 } as const;
 
+/**
+ * 案件8の公式サンプル(LUMINA)形式: 注文番号がなく、1行=1売上明細。
+ * revenue / cost は「その行の合計金額」(単価ではない)。
+ */
+export const LUMINA_COLUMNS = {
+  orderDate: ["order_date"],
+  customerId: ["customer_id"],
+  productName: ["product_name"],
+  category: ["category"],
+  sku: ["sku"],
+  quantity: ["quantity"],
+  revenue: ["revenue"],
+  cost: ["cost"],
+} as const;
+
 export const PRODUCT_COLUMNS = {
   sku: ["sku", "商品コード"],
   name: ["name", "product name", "商品名"],

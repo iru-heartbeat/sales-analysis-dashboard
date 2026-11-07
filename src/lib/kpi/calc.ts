@@ -7,20 +7,32 @@ export const UNCATEGORIZED = "未分類";
 type OrderLine = Pick<
   OrderRow,
   "sku" | "category" | "qty" | "unit_price" | "discount" | "is_cancelled" | "customer_key"
->;
+> & { line_cost?: number | null; line_revenue?: number | null };
 
 /** 返品・キャンセル行を除いた有効な行 */
 function active<T extends { is_cancelled: boolean }>(lines: T[]): T[] {
   return lines.filter((l) => !l.is_cancelled);
 }
 
-/** 1行の売上 = 数量 × 単価 − 割引(マイナスにはしない) */
-export function lineRevenue(l: Pick<OrderLine, "qty" | "unit_price" | "discount">): number {
-  return Math.max(0, l.qty * l.unit_price - l.discount);
+/**
+ * 1行の売上 = 数量 × 単価 − 割引(マイナスにはしない)。
+ * CSVに行ごとの売上合計(line_revenue)がある形式は、それを使う(割り算の丸め誤差を避けるため)。
+ */
+export function lineRevenue(
+  l: Pick<OrderLine, "qty" | "unit_price" | "discount" | "line_revenue">,
+): number {
+  const gross = l.line_revenue ?? l.qty * l.unit_price;
+  return Math.max(0, round2(gross - l.discount));
 }
 
+/**
+ * 小数の足し算では 0.1+0.2=0.30000000000000004 のような誤差が出る。
+ * 行ごとと、合計のたびに、銭単位(小数2桁)へ丸める。
+ */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export function revenue(lines: OrderLine[]): number {
-  return active(lines).reduce((sum, l) => sum + lineRevenue(l), 0);
+  return round2(active(lines).reduce((sum, l) => sum + lineRevenue(l), 0));
 }
 
 export type GrossProfitResult = {
@@ -34,24 +46,31 @@ export type GrossProfitResult = {
 
 /**
  * 粗利 = 売上 − 原価(数量 × 原価)。
- * 原価未登録のSKUは粗利の計算から除外し、missingCostSkus で警告できるようにする
- * (原価0円として扱うと粗利を過大に見せてしまうため)。
+ * 行ごとの原価(line_cost)がある行は、それをそのまま使う(CSVの原価が正)。
+ * なければ商品マスタの原価 × 数量。どちらもない行は粗利の計算から除外し、
+ * missingCostSkus で警告できるようにする(原価0円として扱うと粗利を過大に見せてしまうため)。
  */
 export function grossProfit(lines: OrderLine[], products: Map<string, Product>): GrossProfitResult {
   let profit = 0;
   let covered = 0;
   const missing = new Set<string>();
   for (const l of active(lines)) {
-    const product = products.get(l.sku);
-    if (!product) {
-      missing.add(l.sku);
-      continue;
+    let cost: number;
+    if (l.line_cost !== null && l.line_cost !== undefined) {
+      cost = l.line_cost;
+    } else {
+      const product = products.get(l.sku);
+      if (!product) {
+        missing.add(l.sku);
+        continue;
+      }
+      cost = l.qty * product.cost;
     }
     const rev = lineRevenue(l);
     covered += rev;
-    profit += rev - l.qty * product.cost;
+    profit += rev - cost;
   }
-  return { grossProfit: profit, coveredRevenue: covered, missingCostSkus: [...missing].sort() };
+  return { grossProfit: round2(profit), coveredRevenue: round2(covered), missingCostSkus: [...missing].sort() };
 }
 
 /**
@@ -86,7 +105,7 @@ export function salesByCategory(lines: OrderLine[], products: Map<string, Produc
   }
   const sum = [...totals.values()].reduce((a, b) => a + b, 0);
   return [...totals.entries()]
-    .map(([category, rev]) => ({ category, revenue: rev, share: sum > 0 ? rev / sum : 0 }))
+    .map(([category, rev]) => ({ category, revenue: round2(rev), share: sum > 0 ? rev / sum : 0 }))
     .sort((a, b) => b.revenue - a.revenue);
 }
 
@@ -102,7 +121,7 @@ export function topSkus(lines: OrderLine[], products: Map<string, Product>, n = 
     totals.set(l.sku, t);
   }
   return [...totals.entries()]
-    .map(([sku, t]) => ({ sku, name: products.get(sku)?.name || sku, ...t }))
+    .map(([sku, t]) => ({ sku, name: products.get(sku)?.name || sku, qty: t.qty, revenue: round2(t.revenue) }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, n);
 }

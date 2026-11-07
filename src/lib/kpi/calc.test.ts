@@ -46,6 +46,31 @@ describe("revenue", () => {
   });
 });
 
+describe("line_revenue / line_cost(CSVに行ごとの合計がある形式)", () => {
+  it("売上は line_revenue を優先し、単価×数量の丸め誤差を使わない", () => {
+    expect(revenue([line({ qty: 3, unit_price: 33.33, line_revenue: 100 })])).toBe(100);
+    expect(revenue([line({ qty: 3, unit_price: 33.33 })])).toBe(99.99); // line_revenue がなければ従来どおり
+  });
+
+  it("小数の足し算の誤差が出ない(0.1+0.2)", () => {
+    expect(revenue([line({ line_revenue: 0.1 }), line({ line_revenue: 0.2 })])).toBe(0.3);
+  });
+
+  it("粗利は line_cost があればそれを使い、なければ商品マスタの原価で計算する(混在OK)", () => {
+    const r = grossProfit(
+      [
+        line({ sku: "A", qty: 2, unit_price: 1000, line_cost: 700 }), // CSVの原価 700 を使う(マスタは400×2=800)
+        line({ sku: "B", qty: 1, unit_price: 500 }), // マスタ: 100
+        line({ sku: "ZZZ", qty: 1, unit_price: 999 }), // どちらもない → 除外して警告
+      ],
+      products,
+    );
+    expect(r.grossProfit).toBe(2000 - 700 + (500 - 100));
+    expect(r.coveredRevenue).toBe(2500);
+    expect(r.missingCostSkus).toEqual(["ZZZ"]);
+  });
+});
+
 describe("grossProfit", () => {
   it("売上−原価を計算する", () => {
     const r = grossProfit([line({ qty: 2, unit_price: 1000 })], products);

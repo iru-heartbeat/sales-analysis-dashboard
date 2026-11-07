@@ -2,7 +2,7 @@
 
 import { getCurrentUser } from "@/lib/auth";
 import { decodeCsvBuffer } from "@/lib/csv/decode";
-import { parseOrdersCsv } from "@/lib/csv/parseOrders";
+import { parseSalesCsv } from "@/lib/csv/parseSales";
 import { parseProductsCsv } from "@/lib/csv/parseProducts";
 import { importOrders, importProducts } from "@/lib/data/import";
 import { createClient } from "@/lib/supabase/server";
@@ -46,7 +46,7 @@ export async function uploadOrders(_prev: UploadState, formData: FormData): Prom
   const file = await readCsvFile(formData);
   if (isState(file)) return file;
 
-  const parsed = parseOrdersCsv(file.text, secret);
+  const parsed = parseSalesCsv(file.text, secret);
   if (parsed.fatal) return fail(parsed.fatal);
   if (parsed.rows.length === 0) {
     return fail("取り込める注文行がありませんでした。", parsed.errors);
@@ -61,9 +61,15 @@ export async function uploadOrders(_prev: UploadState, formData: FormData): Prom
         : "データの保存中にエラーが発生しました。一部だけ反映されている可能性があります。同じファイルをもう一度アップロードすると、残りが反映されます(二重計上はされません)。",
     );
   }
+  // CSVに商品名・原価が含まれる形式は、新しいSKUだけ商品マスタにも登録する(グラフの商品名表示のため)。
+  // 既存のマスタは上書きしない。売上は保存済みなので、ここで失敗しても再アップロードで続きから直せる。
+  if (parsed.products.length > 0 && !(await importProducts(supabase, parsed.products, { onlyNew: true }))) {
+    return fail("売上は取り込みましたが、商品マスタの保存に失敗しました。もう一度アップロードしてください。");
+  }
   return {
     status: "success",
     message:
+      `${parsed.format === "lumina" ? "【LUMINA形式】" : "【Shopify形式】"}` +
       `${result.processed}件の注文明細を取り込み・更新しました(登録済みの注文は最新の内容で上書きされます)。` +
       (parsed.errors.length > 0 ? `形式エラーで除外した行: ${parsed.errors.length}件。` : ""),
     errors: parsed.errors.slice(0, MAX_ERRORS_SHOWN),
