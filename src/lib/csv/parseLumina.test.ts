@@ -132,6 +132,62 @@ describe("parseLuminaCsv(案件8の公式サンプル)", () => {
     ].join("\n");
     const r = parseLuminaCsv(dup, SECRET);
     expect(r.rows).toHaveLength(1);
-    expect(r.rows[0]).toMatchObject({ qty: 3, unit_price: 3800, line_cost: 4200 });
+    expect(r.rows[0]).toMatchObject({ qty: 3, unit_price: 3800, line_cost: 4200, line_revenue: 11400 });
+  });
+
+  const HEADER = "order_date,customer_id,product_name,category,sku,quantity,revenue,cost";
+
+  it("割り切れない金額でも、売上はCSVの金額と一致する(100円÷3個=99.99円にならない)", () => {
+    const r = parseLuminaCsv([HEADER, "2025-09-03,C001,A,トップス,S1,3,100,40"].join("\n"), SECRET);
+    expect(r.rows[0].line_revenue).toBe(100);
+    const s = summarize(r.rows, r.products, "2025-09");
+    expect(s.revenue).toBe(100); // unit_price(33.33)×3 = 99.99 ではない
+    expect(s.grossProfit).toBe(60);
+  });
+
+  it("原価が一部の行だけ空欄なら、合算した原価は null(粗利を過大にしない)", () => {
+    const csv = [
+      HEADER,
+      "2025-09-03,C001,A,トップス,S1,1,3800,1400",
+      "2025-09-03,C001,A,トップス,S1,2,7600,",
+    ].join("\n");
+    const r = parseLuminaCsv(csv, SECRET);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0]).toMatchObject({ qty: 3, line_revenue: 11400, line_cost: null });
+    expect(r.products).toEqual([]); // 原価が揃っていないSKUは商品マスタの候補にしない
+    // 原価不明のまま粗利に入れず、警告の対象になる
+    const s = summarize(r.rows, [], "2025-09");
+    expect(s.grossProfit).toBeNull();
+    expect(s.missingCostSkus).toEqual(["S1"]);
+  });
+
+  it("同じ日の同じ顧客の買い物は、SKUが違っても1注文として数える", () => {
+    const csv = [
+      HEADER,
+      "2025-09-03,C001,A,トップス,S1,1,1000,400",
+      "2025-09-03,C001,B,ボトムス,S2,1,2000,800",
+      "2025-09-03,C001,C,アウター,S3,1,3000,1200",
+      "2025-09-04,C002,A,トップス,S1,1,1000,400",
+    ].join("\n");
+    const r = parseLuminaCsv(csv, SECRET);
+    expect(r.rows).toHaveLength(4);
+    expect(summarize(r.rows, r.products, "2025-09").orderCount).toBe(2);
+  });
+
+  it("日付の書き方が違っても同じ注文になる(再アップロードで二重登録されない)", () => {
+    const a = parseLuminaCsv([HEADER, "2025-09-03,C001,A,トップス,S1,1,1000,400"].join("\n"), SECRET);
+    const b = parseLuminaCsv([HEADER, "2025-09-03 00:00:00,C001,A,トップス,S1,1,1000,400"].join("\n"), SECRET);
+    expect(b.rows[0].order_id).toBe(a.rows[0].order_id);
+    expect(b.rows[0].order_id).toBe("2025-09-03|C001");
+  });
+
+  it("商品の単価原価は、原価合計÷数量合計で求める(最後の行の値ではない)", () => {
+    const csv = [
+      HEADER,
+      "2025-09-03,C001,A,トップス,S1,1,1000,100",
+      "2025-09-04,C002,A,トップス,S1,2,2000,100",
+    ].join("\n");
+    const r = parseLuminaCsv(csv, SECRET);
+    expect(r.products).toEqual([{ sku: "S1", name: "A", category: "トップス", cost: 66.67 }]); // 200÷3
   });
 });

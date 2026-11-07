@@ -159,6 +159,7 @@ export function parseOrdersCsv(text: string, secret: string): ParseOrdersResult 
       discount,
       is_cancelled: ctx.cancelled,
       line_cost: null,
+      line_revenue: null,
     });
   });
 

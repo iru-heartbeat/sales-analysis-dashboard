@@ -7,7 +7,7 @@ import type { Product } from "@/lib/types";
 // DBから読み込んで月次サマリーを作る(サーバー専用)。集計の計算自体は lib/kpi/calc.ts の純関数。
 
 const ORDER_COLUMNS =
-  "order_id, sku, category, qty, unit_price, discount, is_cancelled, customer_key, line_cost";
+  "order_id, sku, category, qty, unit_price, discount, is_cancelled, customer_key, line_cost, line_revenue";
 
 export async function fetchProducts(supabase: SupabaseClient): Promise<Map<string, Product>> {
   const rows = await fetchAllPages<Product>((from, to) =>
@@ -38,6 +38,7 @@ type MonthLine = {
   is_cancelled: boolean;
   customer_key: string;
   line_cost: number | null;
+  line_revenue: number | null;
 };
 
 async function fetchMonthLines(supabase: SupabaseClient, month: string): Promise<MonthLine[]> {
@@ -58,6 +59,7 @@ async function fetchMonthLines(supabase: SupabaseClient, month: string): Promise
     discount: Number(r.discount),
     // numeric列は文字列で返ってくるので数値に変換(null はそのまま)
     line_cost: r.line_cost === null ? null : Number(r.line_cost),
+    line_revenue: r.line_revenue === null ? null : Number(r.line_revenue),
   }));
 }
 

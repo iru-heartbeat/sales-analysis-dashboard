@@ -13,6 +13,8 @@ export type OrderRow = {
   is_cancelled: boolean;
   /** 行ごとの原価(合計)。CSVに入っている形式のみ。null なら商品マスタの原価で計算する */
   line_cost: number | null;
+  /** 行ごとの売上(合計・割引前)。CSVに入っている形式のみ。null なら 数量×単価 で計算する */
+  line_revenue: number | null;
 };
 
 /** DBの products テーブル1行 */

@@ -61,8 +61,9 @@ export async function uploadOrders(_prev: UploadState, formData: FormData): Prom
         : "データの保存中にエラーが発生しました。一部だけ反映されている可能性があります。同じファイルをもう一度アップロードすると、残りが反映されます(二重計上はされません)。",
     );
   }
-  // CSVに商品名・原価が含まれる形式は、商品マスタも同時に登録する(グラフの商品名表示のため)
-  if (parsed.products.length > 0 && !(await importProducts(supabase, parsed.products))) {
+  // CSVに商品名・原価が含まれる形式は、新しいSKUだけ商品マスタにも登録する(グラフの商品名表示のため)。
+  // 既存のマスタは上書きしない。売上は保存済みなので、ここで失敗しても再アップロードで続きから直せる。
+  if (parsed.products.length > 0 && !(await importProducts(supabase, parsed.products, { onlyNew: true }))) {
     return fail("売上は取り込みましたが、商品マスタの保存に失敗しました。もう一度アップロードしてください。");
   }
   return {

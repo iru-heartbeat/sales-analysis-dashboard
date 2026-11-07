@@ -50,7 +50,7 @@ npm run typecheck   # next typegen && tsc --noEmit
 データの流れ: CSV → `lib/csv/`(デコード・パース・検証)→ `lib/data/import.ts`(Supabaseへ保存)→ `lib/data/kpi.ts`(DBから月次データ取得)→ `lib/kpi/calc.ts`(集計の純関数)→ 画面(`app/page.tsx` + `components/`)。AIは `lib/ai/`(`facts.ts` で渡す数値と検証、`generateComment.ts` でClaude呼び出し)→ `app/ai/actions.ts` → `ai_comments` テーブル。
 
 - 集計ロジックは副作用のない純関数(`lib/kpi/calc.ts`, `lib/csv/parse*.ts`, `lib/ai/facts.ts`)に閉じ込め、単体テストする。DB・Cookieに触るコードは `lib/data/`, `app/*/actions.ts`, `lib/supabase/` に分ける。
-- 売上CSVは2形式を自動判定(`lib/csv/parseSales.ts`): Shopify注文CSV(`parseOrders.ts`)と、案件8の公式サンプルのLUMINA形式(`parseLumina.ts`。注文番号なし・revenue/costは行の合計)。LUMINA形式は行ごとの原価を `orders.line_cost` に保存し、粗利は `line_cost` があればそれを優先、なければ商品マスタ×数量。公式サンプルは `tests/fixtures/sample-sales.csv`(`case8-sales-sample.csv` と同じ)で、`README (1).md` の「正解値」と単体テストで照合している。
+- 売上CSVは2形式を自動判定(`lib/csv/parseSales.ts`): Shopify注文CSV(`parseOrders.ts`)と、案件8の公式サンプルのLUMINA形式(`parseLumina.ts`。注文番号なし・revenue/costは行の合計)。LUMINA形式は行ごとの売上・原価を `orders.line_revenue` / `line_cost` にそのまま保存し(単価×数量だと割り切れない金額で1円未満ずれるため)、売上・粗利は `line_*` があればそれを優先、なければ 数量×単価 / 商品マスタ×数量。注文IDは `日付|顧客ID`(同じ日の同じ顧客=1注文。日付は整えてから使うので書き方が違っても同じ注文になる)。原価が1行でも空欄の行は合算後も `line_cost = null`(粗利を過大にしない)。売上CSV由来の商品マスタは新しいSKUだけ追加し、既存マスタは上書きしない。集計の合計は小数2桁に丸める(0.1+0.2の誤差対策)。公式サンプルは `tests/fixtures/sample-sales.csv`(`case8-sales-sample.csv` と同じ)で、`README (1).md` の「正解値」と単体テストで照合している。
 - 公式サンプルの説明書にある「リピート率28.6%」は全期間の顧客ベース(2か月以上購入した人÷全顧客)。ダッシュボードのリピート率は月次(当月の購入者のうち過去にも購入した人の割合)で定義が違う。
 - CSVの列名対応は `lib/csv/columns.ts` の別名リストだけで変更できる。Shopifyは注文単位の項目(メール・日時・ステータス)が先頭行にしかないため、パーサーが後続行へ引き継ぐ。
 - Supabaseは1回のSELECTが1000行まで。複数行を読むときは必ず `lib/supabase/paging.ts` の `fetchAllPages` を使い、`order()` を付ける。
@@ -65,7 +65,8 @@ npm run typecheck   # next typegen && tsc --noEmit
 
 - `npm test`: 単体テスト(vitest)。`src/**/*.test.ts`。単体で実行: `npx vitest run src/lib/kpi/calc.test.ts` / テスト名で絞る: `npx vitest run -t "リピート率"`
 - 結合テスト(実Supabaseに書き込む): `INTEGRATION=1 TEST_EMAIL=... TEST_PASSWORD=... npm test`(marketer権限のテストユーザーが必要。通常はスキップされる)。
-- 動作確認用のダミーデータ: `node scripts/generate-sample-data.mjs` → `sample-data/`(Shopify注文CSVと商品マスタ。GDS-003は原価未登録の警告確認用)。現在のDBにはこのサンプルが投入済み。
+- 動作確認用のダミーデータ: `node scripts/generate-sample-data.mjs` → `sample-data/`(Shopify注文CSVと商品マスタ。GDS-003は原価未登録の警告確認用)。
+- **現在のDBには案件8の公式サンプル(LUMINA形式・40件、2025年9〜11月)だけが入っている**(`case8-sales-sample.csv`)。説明書の正解値と一致することを確認済み。以前入れていた上記のダミー(Shopify形式)は削除済みで、復元はしない方針。必要なら `sample-data/` を再アップロードすれば入るが、公式サンプルと月が重なる(2025年9〜11月)ため混ざる。AIコメントの退避は `backup/`。
 
 ## 設計上の前提(実装済みではない。計画の決定事項)
 
