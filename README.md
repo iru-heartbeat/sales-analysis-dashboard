@@ -42,7 +42,7 @@
 
 - **案件8のサンプル形式**: `order_date, customer_id, product_name, category, sku, quantity, revenue, cost`
   (`revenue` と `cost` は、その行の合計金額)。商品名・原価も同時に登録されるので、これだけで使えます。
-  サンプル: [`case8-sales-sample.csv`](case8-sales-sample.csv)
+  サンプル: [`case8-sales-sample.csv`](case8-sales-sample.csv)（データの説明と正解値は [docs/sample-data.md](docs/sample-data.md)）
 - **Shopifyの注文エクスポートCSV**: 粗利を出したいときは、先に商品マスタ(列: `SKU, 商品名, カテゴリ, 原価`)を登録します。
 
 文字コードは UTF-8 / Shift_JIS に対応。10MBまで。

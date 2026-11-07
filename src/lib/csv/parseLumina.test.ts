@@ -7,7 +7,7 @@ import { parseLuminaCsv } from "./parseLumina";
 import { parseSalesCsv } from "./parseSales";
 
 const SECRET = "test-secret-test-secret-test-secret-123";
-// 案件8の公式サンプルCSV(説明書 README (1).md の「正解値」と照合する)
+// 案件8の公式サンプルCSV(説明書 docs/sample-data.md の「正解値」と照合する)
 const csv = readFileSync("tests/fixtures/sample-sales.csv", "utf8");
 
 const withOrderId = (rows: OrderRow[]) => rows;
