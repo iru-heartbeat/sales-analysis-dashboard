@@ -32,8 +32,8 @@ async function UploadContent() {
             action={uploadProducts}
           />
           <UploadForm
-            title="② 注文データ(Shopifyの注文CSV)"
-            description="Shopifyの注文エクスポートCSVに対応(UTF-8 / Shift_JIS)。同じ注文は重複して取り込まれません。"
+            title="② 売上データ(注文CSV)"
+            description="Shopifyの注文エクスポートCSV、または案件8のサンプル形式(order_date, customer_id, product_name, category, sku, quantity, revenue, cost)を自動判定して取り込みます(UTF-8 / Shift_JIS)。同じ注文は上書きされ、重複しません。サンプル形式は商品マスタも同時に登録されるため、①は不要です。"
             action={uploadOrders}
           />
         </>

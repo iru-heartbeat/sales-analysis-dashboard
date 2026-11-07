@@ -11,6 +11,8 @@ export type OrderRow = {
   unit_price: number;
   discount: number;
   is_cancelled: boolean;
+  /** 行ごとの原価(合計)。CSVに入っている形式のみ。null なら商品マスタの原価で計算する */
+  line_cost: number | null;
 };
 
 /** DBの products テーブル1行 */

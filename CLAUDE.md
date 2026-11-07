@@ -50,6 +50,8 @@ npm run typecheck   # next typegen && tsc --noEmit
 データの流れ: CSV → `lib/csv/`(デコード・パース・検証)→ `lib/data/import.ts`(Supabaseへ保存)→ `lib/data/kpi.ts`(DBから月次データ取得)→ `lib/kpi/calc.ts`(集計の純関数)→ 画面(`app/page.tsx` + `components/`)。AIは `lib/ai/`(`facts.ts` で渡す数値と検証、`generateComment.ts` でClaude呼び出し)→ `app/ai/actions.ts` → `ai_comments` テーブル。
 
 - 集計ロジックは副作用のない純関数(`lib/kpi/calc.ts`, `lib/csv/parse*.ts`, `lib/ai/facts.ts`)に閉じ込め、単体テストする。DB・Cookieに触るコードは `lib/data/`, `app/*/actions.ts`, `lib/supabase/` に分ける。
+- 売上CSVは2形式を自動判定(`lib/csv/parseSales.ts`): Shopify注文CSV(`parseOrders.ts`)と、案件8の公式サンプルのLUMINA形式(`parseLumina.ts`。注文番号なし・revenue/costは行の合計)。LUMINA形式は行ごとの原価を `orders.line_cost` に保存し、粗利は `line_cost` があればそれを優先、なければ商品マスタ×数量。公式サンプルは `tests/fixtures/sample-sales.csv`(`case8-sales-sample.csv` と同じ)で、`README (1).md` の「正解値」と単体テストで照合している。
+- 公式サンプルの説明書にある「リピート率28.6%」は全期間の顧客ベース(2か月以上購入した人÷全顧客)。ダッシュボードのリピート率は月次(当月の購入者のうち過去にも購入した人の割合)で定義が違う。
 - CSVの列名対応は `lib/csv/columns.ts` の別名リストだけで変更できる。Shopifyは注文単位の項目(メール・日時・ステータス)が先頭行にしかないため、パーサーが後続行へ引き継ぐ。
 - Supabaseは1回のSELECTが1000行まで。複数行を読むときは必ず `lib/supabase/paging.ts` の `fetchAllPages` を使い、`order()` を付ける。
 - `"use server"` ファイルは非同期関数しか export できない。型・初期値は `state.ts` に分ける(`app/upload/state.ts`, `app/ai/state.ts`)。

@@ -7,7 +7,7 @@ export const UNCATEGORIZED = "未分類";
 type OrderLine = Pick<
   OrderRow,
   "sku" | "category" | "qty" | "unit_price" | "discount" | "is_cancelled" | "customer_key"
->;
+> & { line_cost?: number | null };
 
 /** 返品・キャンセル行を除いた有効な行 */
 function active<T extends { is_cancelled: boolean }>(lines: T[]): T[] {
@@ -34,22 +34,29 @@ export type GrossProfitResult = {
 
 /**
  * 粗利 = 売上 − 原価(数量 × 原価)。
- * 原価未登録のSKUは粗利の計算から除外し、missingCostSkus で警告できるようにする
- * (原価0円として扱うと粗利を過大に見せてしまうため)。
+ * 行ごとの原価(line_cost)がある行は、それをそのまま使う(CSVの原価が正)。
+ * なければ商品マスタの原価 × 数量。どちらもない行は粗利の計算から除外し、
+ * missingCostSkus で警告できるようにする(原価0円として扱うと粗利を過大に見せてしまうため)。
  */
 export function grossProfit(lines: OrderLine[], products: Map<string, Product>): GrossProfitResult {
   let profit = 0;
   let covered = 0;
   const missing = new Set<string>();
   for (const l of active(lines)) {
-    const product = products.get(l.sku);
-    if (!product) {
-      missing.add(l.sku);
-      continue;
+    let cost: number;
+    if (l.line_cost !== null && l.line_cost !== undefined) {
+      cost = l.line_cost;
+    } else {
+      const product = products.get(l.sku);
+      if (!product) {
+        missing.add(l.sku);
+        continue;
+      }
+      cost = l.qty * product.cost;
     }
     const rev = lineRevenue(l);
     covered += rev;
-    profit += rev - l.qty * product.cost;
+    profit += rev - cost;
   }
   return { grossProfit: profit, coveredRevenue: covered, missingCostSkus: [...missing].sort() };
 }
