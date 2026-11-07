@@ -55,7 +55,7 @@ npm run typecheck   # next typegen && tsc --noEmit
 - CSVの列名対応は `lib/csv/columns.ts` の別名リストだけで変更できる。Shopifyは注文単位の項目(メール・日時・ステータス)が先頭行にしかないため、パーサーが後続行へ引き継ぐ。
 - Supabaseは1回のSELECTが1000行まで。複数行を読むときは必ず `lib/supabase/paging.ts` の `fetchAllPages` を使い、`order()` を付ける。
 - `"use server"` ファイルは非同期関数しか export できない。型・初期値は `state.ts` に分ける(`app/upload/state.ts`, `app/ai/state.ts`)。
-- AIコメント: モデルは `ANTHROPIC_MODEL`(既定 `claude-opus-5-5`)。出力はzodスキーマの構造化出力。AIが根拠として引用した数値を `validateEvidence` で検証し、不一致なら1回だけ再生成、それでも不一致なら保存しない。生成の試行(失敗も含む)は全体で24時間に5回まで(`ai_generation_log` テーブルで数える。コスト上限)。各アクションは根拠(evidence)が1件以上必須。本文中の数値までは検証していない(既知の制限)。
+- AIコメント: モデルは `ANTHROPIC_MODEL`(既定 `claude-sonnet-5-5`。月額予算のため。以前の既定は `claude-opus-5-5`)。出力はzodスキーマの構造化出力。AIが根拠として引用した数値を `validateEvidence` で検証し、不一致なら1回だけ再生成、それでも不一致なら保存しない。生成の試行(失敗も含む)は全体で24時間に5回まで(`ai_generation_log` テーブルで数える。コスト上限)。各アクションは根拠(evidence)が1件以上必須。本文中の数値までは検証していない(既知の制限)。
 - 注文の再取り込みは upsert(同じ注文番号×SKUは最新の内容で上書き)。返金・数量変更が反映される。途中失敗時も取り込み済みの分は消さない(`uploads` を消すと `orders` がcascadeで消えるため、巻き戻しはしない)。同じファイルの再アップロードで続きから反映できる。
 - CSVの数値は `lib/csv/values.ts` で厳密に検証(指数表記・16進・負数・桁あふれは不可)。文字列は200文字で切り詰め。`"use server"` のアップロード上限は `next.config.ts` で11MBに設定。AI生成のため `app/page.tsx` に `maxDuration = 60`。
 - 粗利は原価登録済みSKUのみで計算(未登録は警告表示)。リピート率は過去の購入履歴が全くないとき「算出不可」。
@@ -64,9 +64,8 @@ npm run typecheck   # next typegen && tsc --noEmit
 ## テスト
 
 - `npm test`: 単体テスト(vitest)。`src/**/*.test.ts`。単体で実行: `npx vitest run src/lib/kpi/calc.test.ts` / テスト名で絞る: `npx vitest run -t "リピート率"`
-- 結合テスト(実Supabaseに書き込む): `INTEGRATION=1 TEST_EMAIL=... TEST_PASSWORD=... npm test`(marketer権限のテストユーザーが必要。通常はスキップされる)。
-- 動作確認用のダミーデータ: `node scripts/generate-sample-data.mjs` → `sample-data/`(Shopify注文CSVと商品マスタ。GDS-003は原価未登録の警告確認用)。
-- **現在のDBには案件8の公式サンプル(LUMINA形式・40件、2025年9〜11月)だけが入っている**(`case8-sales-sample.csv`)。説明書の正解値と一致することを確認済み。以前入れていた上記のダミー(Shopify形式)は削除済みで、復元はしない方針。必要なら `sample-data/` を再アップロードすれば入るが、公式サンプルと月が重なる(2025年9〜11月)ため混ざる。AIコメントの退避は `backup/`。
+- 結合テスト(実Supabaseに書き込む): `INTEGRATION=1 TEST_EMAIL=... TEST_PASSWORD=... npm test`(承認済みmarketerのテストユーザーが必要。通常はスキップされる)。公式サンプルを取り込み、説明書の正解値と照合し、返金の反映まで確認して元に戻す。DBの2025年9〜11月に公式サンプル以外のデータがあると失敗する。
+- **現在のDBには案件8の公式サンプル(LUMINA形式・注文40件・商品8件、2025年9〜11月)だけが入っている**(`case8-sales-sample.csv`。単体テストは同じ内容の `tests/fixtures/sample-sales.csv` を読む)。説明書の正解値と一致することを確認済み。以前使っていた自作のダミー(Shopify形式、`sample-data/`)は削除済みで、復元しない。Shopify形式の取り込みは単体テスト(`parseOrders.test.ts`)で確認している。
 
 ## 設計上の前提(実装済みではない。計画の決定事項)
 

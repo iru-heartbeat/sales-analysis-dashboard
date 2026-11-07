@@ -4,7 +4,8 @@ import { z } from "zod";
 import type { DashboardData } from "@/lib/data/kpi";
 import { buildFacts, buildPromptInput, METRIC_KEYS, validateEvidence } from "./facts";
 
-export const AI_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+// 月額予算(5,000円)に収まるよう、速さと費用のバランスがよい Sonnet を既定にする。環境変数で差し替え可能。
+export const AI_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 
 const CommentSchema = z.object({
   summary: z.string().describe("今月の状況サマリー。3〜5文。"),
